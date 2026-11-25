@@ -354,7 +354,73 @@ SELECT 'SQLERRM with package EXCEPTION test passed (issue #1151)' AS result;
 
 DROP PACKAGE test_sqlerrm_with_exc;
 
+--
+-- Test 13: Non-variable namespace entries in PRAGMA EXCEPTION_INIT and WHEN
+-- Subprocedures/functions store their subproc index (fno) in nse->itemno,
+-- not a plisql_Datums[] index.
+--
+CREATE OR REPLACE PROCEDURE test_pragma_subproc_oob IS
+  PROCEDURE p0 IS BEGIN NULL; END;
+  PROCEDURE p1 IS BEGIN NULL; END;
+  PROCEDURE p2 IS BEGIN NULL; END;
+  PROCEDURE p3 IS BEGIN NULL; END;
+  PROCEDURE p4 IS BEGIN NULL; END;
+  PRAGMA EXCEPTION_INIT(p4, -20001);
+BEGIN
+  NULL;
+END;
+/
+
+CREATE OR REPLACE PROCEDURE test_pragma_subproc_alias IS
+  e0 EXCEPTION;
+  PROCEDURE p0 IS BEGIN NULL; END;
+  PROCEDURE p1 IS BEGIN NULL; END;
+  PRAGMA EXCEPTION_INIT(p1, -20001);
+BEGIN
+  NULL;
+END;
+/
+
+CREATE OR REPLACE PROCEDURE test_when_subproc_alias IS
+  e0 EXCEPTION;
+  PROCEDURE p0 IS BEGIN NULL; END;
+  PROCEDURE p1 IS BEGIN NULL; END;
+BEGIN
+  NULL;
+EXCEPTION
+  WHEN p1 THEN
+    NULL;
+END;
+/
+
+--
+-- Test 14: %TYPE referencing an EXCEPTION declaration must fail cleanly
+--
+CREATE OR REPLACE PROCEDURE test_exc_pct_type IS
+  my_exc EXCEPTION;
+  v my_exc%TYPE;
+BEGIN
+  NULL;
+END;
+/
+
+<<outer_blk>>
+DECLARE
+  my_exc EXCEPTION;
+BEGIN
+  DECLARE
+    v outer_blk.my_exc%TYPE;
+  BEGIN
+    NULL;
+  END;
+END;
+/
+
 -- Cleanup
+DROP PROCEDURE test_pragma_subproc_oob;
+DROP PROCEDURE test_pragma_subproc_alias;
+DROP PROCEDURE test_when_subproc_alias;
+DROP PROCEDURE test_exc_pct_type;
 DROP PACKAGE test_pragma_init;
 DROP PACKAGE test_pragma_raise;
 DROP PROCEDURE test_pragma_proc;

@@ -2526,6 +2526,15 @@ plisql_parse_wordtype(char *ident)
 			case PLISQL_NSTYPE_VAR:
 
 				/*
+				 * An EXCEPTION or other non-variable datum stored under
+				 * PLISQL_NSTYPE_VAR is not a PLiSQL_var and has no datatype
+				 * field; reject it rather than casting it unsafely.
+				 */
+				if (plisql_Datums[nse->itemno]->dtype != PLISQL_DTYPE_VAR &&
+					plisql_Datums[nse->itemno]->dtype != PLISQL_DTYPE_PROMISE)
+					break;
+
+				/*
 				 * Set the not null attribute of variable with notnull
 				 * attribute of dtype. For example, name has a NOT NULL
 				 * constraint, surname inherits the NOT NULL constraint.
@@ -2611,7 +2620,9 @@ plisql_parse_cwordtype(List *idents)
 						NULL,
 						&nnames);
 
-		if (nse != NULL && nse->itemtype == PLISQL_NSTYPE_VAR)
+		if (nse != NULL && nse->itemtype == PLISQL_NSTYPE_VAR &&
+			(plisql_Datums[nse->itemno]->dtype == PLISQL_DTYPE_VAR ||
+			 plisql_Datums[nse->itemno]->dtype == PLISQL_DTYPE_PROMISE))
 		{
 			dtype = ((PLiSQL_var *) (plisql_Datums[nse->itemno]))->datatype;
 
