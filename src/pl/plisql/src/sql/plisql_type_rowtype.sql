@@ -2599,3 +2599,38 @@ RESET IVORYSQL.IDENTIFIER_CASE_SWITCH;
 --
 --clean up
 DROP TABLE employees;
+
+-- Test: reset plisql_referenced_objects and check_referenced_objects after compile error
+CREATE TABLE refobj_uaf_tbl(id int, val varchar(20));
+
+CREATE OR REPLACE FUNCTION refobj_poly_driver(p_mode int) RETURN text AS
+    FUNCTION poly_fn(x anyelement) RETURN text IS
+        v refobj_uaf_tbl.id%TYPE;
+    BEGIN
+        v := 1;
+        RETURN x::text || ':' || v::text;
+    END;
+BEGIN
+    IF p_mode = 1 THEN
+        RETURN poly_fn(10);
+    ELSE
+        RETURN poly_fn('ok'::text);
+    END IF;
+END;
+/
+
+SELECT refobj_poly_driver(1) FROM dual;
+
+CREATE OR REPLACE FUNCTION refobj_bad_fn() RETURN int AS
+    v refobj_uaf_tbl.id%TYPE;
+BEGIN
+    unknown_var := 1;
+    RETURN v;
+END;
+/
+
+SELECT refobj_poly_driver(2) FROM dual;
+
+DROP FUNCTION refobj_bad_fn;
+DROP FUNCTION refobj_poly_driver;
+DROP TABLE refobj_uaf_tbl;

@@ -1110,7 +1110,9 @@ package_body_doCompile(HeapTuple pkgbodyTup,
 	}
 	PG_CATCH();
 	{
+		check_referenced_objects = false;
 		list_free(plisql_referenced_objects);
+		plisql_referenced_objects = NIL;
 
 		/*
 		 * package body compile failed, we drop package cache at best
@@ -1121,6 +1123,10 @@ package_body_doCompile(HeapTuple pkgbodyTup,
 		PG_RE_THROW();
 	}
 	PG_END_TRY();
+
+	check_referenced_objects = false;
+	list_free(plisql_referenced_objects);
+	plisql_referenced_objects = NIL;
 
 	add_dummy_return(&psource->source);
 
@@ -1144,9 +1150,6 @@ package_body_doCompile(HeapTuple pkgbodyTup,
 	plisql_error_funcname = NULL;
 
 	plisql_check_syntax = false;
-
-	check_referenced_objects = false;
-	list_free(plisql_referenced_objects);
 
 	MemoryContextSwitchTo(plisql_compile_tmp_cxt);
 	plisql_compile_tmp_cxt = NULL;
@@ -1402,7 +1405,9 @@ package_doCompile(HeapTuple pkgTup, bool forValidator)
 	}
 	PG_CATCH();
 	{
+		check_referenced_objects = false;
 		list_free(plisql_referenced_objects);
+		plisql_referenced_objects = NIL;
 		plisql_free_package_function(item);
 		PG_RE_THROW();
 	}
@@ -1435,6 +1440,7 @@ package_doCompile(HeapTuple pkgTup, bool forValidator)
 
 	check_referenced_objects = false;
 	list_free(plisql_referenced_objects);
+	plisql_referenced_objects = NIL;
 
 	MemoryContextSwitchTo(plisql_compile_tmp_cxt);
 	plisql_compile_tmp_cxt = NULL;

@@ -3076,6 +3076,8 @@ plisql_dynamic_compile_subproc(FunctionCallInfo fcinfo,
 	 * reasons.
 	 */
 	plisql_check_syntax = false;
+	check_referenced_objects = false;
+	plisql_referenced_objects = NIL;
 
 	function = (PLiSQL_function *)
 		MemoryContextAllocZero(subprocfunc->function->fn_cxt, sizeof(PLiSQL_function));

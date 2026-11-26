@@ -1036,7 +1036,9 @@ do_compile(FunctionCallInfo fcinfo,
 	}
 	PG_CATCH();
 	{
+		check_referenced_objects = false;
 		list_free(plisql_referenced_objects);
+		plisql_referenced_objects = NIL;
 		PG_RE_THROW();
 	}
 	PG_END_TRY();
@@ -1080,7 +1082,18 @@ do_compile(FunctionCallInfo fcinfo,
 		plisql_mark_local_assignment_targets(function);
 	plisql_finish_subproc_func(function);
 
-	plisql_check_subproc_define(function, scanner);
+	PG_TRY();
+	{
+		plisql_check_subproc_define(function, scanner);
+	}
+	PG_CATCH();
+	{
+		check_referenced_objects = false;
+		list_free(plisql_referenced_objects);
+		plisql_referenced_objects = NIL;
+		PG_RE_THROW();
+	}
+	PG_END_TRY();
 
 	/*
 	 * run after plisql_check_subproc_define for nice error message
@@ -1245,6 +1258,7 @@ do_compile(FunctionCallInfo fcinfo,
 
 	check_referenced_objects = false;
 	list_free(plisql_referenced_objects);
+	plisql_referenced_objects = NIL;
 
 	MemoryContextSwitchTo(plisql_compile_tmp_cxt);
 	plisql_compile_tmp_cxt = NULL;
