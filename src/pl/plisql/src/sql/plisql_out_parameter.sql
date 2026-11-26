@@ -1207,6 +1207,54 @@ begin
 	execute immediate ''declare books integer; begin books := 1000; :x := books + 100;end;'' using out id;
 end;');
 
+--test STRICT function with OUT parameters receiving NULL argument
+create or replace function test_strict_out(id integer, res1 out integer, res2 out integer)
+return integer strict
+as
+begin
+  res1 := id + 10;
+  res2 := id + 20;
+  return id * 2;
+end;
+/
+
+declare
+  v_r integer;
+  v_1 integer := 99;
+  v_2 integer := 88;
+begin
+  v_r := test_strict_out(NULL, v_1, v_2);
+  raise notice 'r=%, v1=%, v2=%', v_r, v_1, v_2;
+  v_r := test_strict_out(5, v_1, v_2);
+  raise notice 'r=%, v1=%, v2=%', v_r, v_1, v_2;
+end;
+/
+
+drop function test_strict_out(integer, integer, integer);
+
+--test allow_out_parameter_const with mixed constant and variable OUT parameters
+create or replace function test_mixed_const_out(id integer, name out varchar, price out integer)
+return integer
+as
+begin
+  name := 'thanks';
+  price := id + 100;
+  return id;
+end;
+/
+
+set ivorysql.allow_out_parameter_const = true;
+declare
+  v_r integer;
+  v_price integer := 0;
+begin
+  v_r := test_mixed_const_out(23, 'ignored_const'::varchar, v_price);
+  raise notice 'r=%, price=%', v_r, v_price;
+end;
+/
+set ivorysql.allow_out_parameter_const = false;
+drop function test_mixed_const_out(integer, varchar, integer);
+
 --clean data
 drop table books;
 

@@ -10253,6 +10253,37 @@ plisql_out_param(ExprState *state, ExprEvalStep *op)
 	HeapTupleData tmptup;
 	TupleDesc	tupdesc = NULL;
 
+	if (isNull)
+	{
+		for (i = 0; i < nout; i++)
+		{
+			Oid			valtype;
+			int32		valtypmod = -1;
+			Oid			collation;
+			PLiSQL_datum *target;
+
+			if (paramids[i] < 0)
+				continue;
+
+			target = estate->datums[paramids[i]];
+			if (target->dtype == PLISQL_DTYPE_EXCEPTION)
+				continue;
+
+			if (target->dtype == PLISQL_DTYPE_ROW)
+				valtype = RECORDOID;
+			else
+				plisql_exec_get_datum_type_info(estate, target,
+												&valtype, &valtypmod,
+												&collation);
+
+			exec_assign_value(estate, target, (Datum) 0, true,
+							  valtype, valtypmod);
+		}
+		*op->resnull = true;
+		*op->resvalue = (Datum) 0;
+		return;
+	}
+
 	old = MemoryContextSwitchTo(estate->datum_context);
 
 	tupdesc = deconstruct_composite_datum(value, &tmptup);
@@ -10264,6 +10295,9 @@ plisql_out_param(ExprState *state, ExprEvalStep *op)
 		Oid			valtype;
 		int32		valtypmod = -1;
 		PLiSQL_datum *target;
+
+		if (paramids[i] < 0)
+			continue;
 
 		target = estate->datums[paramids[i]];
 
