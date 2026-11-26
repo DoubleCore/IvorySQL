@@ -5298,6 +5298,7 @@ ExecInitFuncWithOutParams(Expr *node, ExprState *state,
 										(errcode(ERRCODE_DATA_EXCEPTION),
 										 errmsg("OUT or IN OUT arguments of the function %s must be variables ",
 												funcname)));
+							nout++;
 						}
 						else
 							paramids[nout++] = ((Param *) arg)->paramid - 1;
