@@ -4137,3 +4137,54 @@ DROP PROCEDURE test.test_proc1;
 DROP FUNCTION test.test_f;
 DROP SCHEMA test;
 DROP TABLE r1;
+
+-- Test: failed dynamic compilation of polymorphic subproc must not corrupt template or poly_tab
+CREATE TYPE poly_cleanup_rec AS (a integer, b text);
+CREATE OR REPLACE FUNCTION poly_cleanup_driver(p_mode integer) RETURN integer AS
+    r poly_cleanup_rec;
+    FUNCTION poly_fn(x anyelement) RETURN integer IS
+        v x%TYPE;
+    BEGIN
+        GET DIAGNOSTICS v = ROW_COUNT;
+        RETURN 1;
+    END;
+BEGIN
+    IF p_mode = 1 THEN
+        RETURN poly_fn(10);
+    ELSIF p_mode = 2 THEN
+        r.a := 1;
+        r.b := 'a';
+        RETURN poly_fn(r);
+    ELSE
+        RETURN poly_fn(10::bigint);
+    END IF;
+END;
+/
+
+SELECT poly_cleanup_driver(1) FROM dual;
+
+DECLARE
+    v integer;
+BEGIN
+    v := poly_cleanup_driver(2);
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE INFO '%', SQLERRM;
+END;
+/
+
+SELECT poly_cleanup_driver(1) FROM dual;
+SELECT poly_cleanup_driver(3) FROM dual;
+
+DECLARE
+    v integer;
+BEGIN
+    v := poly_cleanup_driver(2);
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE INFO '%', SQLERRM;
+END;
+/
+
+DROP FUNCTION poly_cleanup_driver;
+DROP TYPE poly_cleanup_rec;
