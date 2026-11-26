@@ -42,6 +42,7 @@
 
 #include <limits.h>
 
+#include "common/int.h"
 #include "miscadmin.h"
 #include "pgtime.h"
 #include "utils/builtins.h"
@@ -911,25 +912,25 @@ eval_calendar(const CalendarRule *rule, TimestampTz start, TimestampTz after,
 	 */
 	if (after > start)
 	{
-		int64		diff_usec = after - start;
-		int64		periods = 0;
+		uint64		diff_usec = (uint64) after - (uint64) start;
+		uint64		periods = 0;
 
 		switch (rule->freq)
 		{
 			case FREQ_SECONDLY:
-				periods = diff_usec / (rule->interval * USECS_PER_SEC);
+				periods = diff_usec / ((uint64) rule->interval * USECS_PER_SEC);
 				break;
 			case FREQ_MINUTELY:
-				periods = diff_usec / (rule->interval * USECS_PER_MINUTE);
+				periods = diff_usec / ((uint64) rule->interval * USECS_PER_MINUTE);
 				break;
 			case FREQ_HOURLY:
-				periods = diff_usec / (rule->interval * USECS_PER_HOUR);
+				periods = diff_usec / ((uint64) rule->interval * USECS_PER_HOUR);
 				break;
 			case FREQ_DAILY:
-				periods = diff_usec / (rule->interval * USECS_PER_DAY);
+				periods = diff_usec / ((uint64) rule->interval * USECS_PER_DAY);
 				break;
 			case FREQ_WEEKLY:
-				periods = diff_usec / (rule->interval * 7 * USECS_PER_DAY);
+				periods = diff_usec / ((uint64) rule->interval * 7 * USECS_PER_DAY);
 				break;
 			case FREQ_MONTHLY:
 				periods = (diff_usec / USECS_PER_DAY / 32) / rule->interval;
@@ -938,7 +939,7 @@ eval_calendar(const CalendarRule *rule, TimestampTz start, TimestampTz after,
 				periods = (diff_usec / USECS_PER_DAY / 366) / rule->interval;
 				break;
 		}
-		k0 = periods > 2 ? periods - 2 : 0;
+		k0 = (periods > 2) ? (int64) Min(periods - 2, (uint64) PG_INT64_MAX - SCHED_MAX_PERIODS) : 0;
 	}
 
 	for (k = k0; k < k0 + SCHED_MAX_PERIODS; k++)
@@ -998,11 +999,25 @@ eval_calendar(const CalendarRule *rule, TimestampTz start, TimestampTz after,
 				{
 					int64		mindex = (int64) tm_start.tm_year * 12 +
 						(tm_start.tm_mon - 1) + k * rule->interval;
-					int			year = (int) (mindex / 12);
-					int			mon = (int) (mindex % 12) + 1;
+					int64		q = mindex / 12;
+					int64		r = mindex % 12;
+					int			year;
+					int			mon;
 					int			days[31];
 					int			nd,
 								di;
+
+					/*
+					 * Use Euclidean floor division so BC start dates
+					 * (tm_year <= 0, mindex < 0) always yield mon in 1..12.
+					 */
+					if (r < 0)
+					{
+						r += 12;
+						q -= 1;
+					}
+					year = (int) q;
+					mon = (int) r + 1;
 
 					if (rule->has_bymonth && !rule->bymonth[mon])
 						break;
@@ -1088,6 +1103,7 @@ eval_calendar(const CalendarRule *rule, TimestampTz start, TimestampTz after,
 					 * as filters on the period's local time.
 					 */
 					int64		step_usec;
+					int64		offset_usec;
 					TimestampTz base;
 					struct pg_tm tm;
 					fsec_t		f2;
@@ -1100,7 +1116,9 @@ eval_calendar(const CalendarRule *rule, TimestampTz start, TimestampTz after,
 					else
 						step_usec = rule->interval * USECS_PER_SEC;
 
-					base = start + k * step_usec;
+					if (pg_mul_s64_overflow(k, step_usec, &offset_usec) ||
+						pg_add_s64_overflow(start, offset_usec, &base))
+						return false;
 					if (timestamp2tm(base, &tz2, &tm, &f2, NULL, session_timezone) != 0)
 						break;
 
