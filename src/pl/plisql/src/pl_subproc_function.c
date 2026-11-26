@@ -3018,9 +3018,10 @@ plisql_dynamic_compile_subproc(FunctionCallInfo fcinfo,
 {
 	ErrorContextCallback plerrcontext;
 	MemoryContext func_cxt;
+	PLiSQL_function *orig_function = subprocfunc->function;
 	PLiSQL_function *function;
 	int			parse_rc;
-	int			found_varno = subprocfunc->function->found_varno;
+	int			found_varno = orig_function->found_varno;
 	Oid			define_useid = InvalidOid;
 	Oid			save_userid;
 	int			save_sec_context;
@@ -3044,16 +3045,16 @@ plisql_dynamic_compile_subproc(FunctionCallInfo fcinfo,
 	error_context_stack = &plerrcontext;
 
 	/* If compiling within a package, adopt package owner and error callback */
-	if (subprocfunc->function->item != NULL)
+	if (orig_function->item != NULL)
 	{
 		HeapTuple	pkgTup;
 		Form_pg_package pkgStruct;
 
 		pkgTup = SearchSysCache1(PKGOID,
-								 ObjectIdGetDatum(subprocfunc->function->item->pkey));
+								 ObjectIdGetDatum(orig_function->item->pkey));
 		if (!HeapTupleIsValid(pkgTup))
 			elog(ERROR, "cache lookup failed for package %u",
-				 subprocfunc->function->item->pkey);
+				 orig_function->item->pkey);
 
 		pkgStruct = (Form_pg_package) GETSTRUCT(pkgTup);
 
@@ -3077,64 +3078,101 @@ plisql_dynamic_compile_subproc(FunctionCallInfo fcinfo,
 	 */
 	plisql_check_syntax = false;
 
-	function = (PLiSQL_function *)
-		MemoryContextAllocZero(subprocfunc->function->fn_cxt, sizeof(PLiSQL_function));
-	plisql_curr_compile = function;
-
 	/* Reuse original function's memory context */
-	func_cxt = subprocfunc->function->fn_cxt;
+	func_cxt = orig_function->fn_cxt;
+
+	function = (PLiSQL_function *)
+		MemoryContextAllocZero(func_cxt, sizeof(PLiSQL_function));
+	plisql_curr_compile = function;
 
 	plisql_compile_tmp_cxt = MemoryContextSwitchTo(func_cxt);
 
-	function->fn_signature = quote_qualified_identifier(NULL, subprocfunc->func_name);
-	function->fn_input_collation = fcinfo->fncollation;
-	function->fn_cxt = func_cxt;
-	function->out_param_varno = -1; /* set up for no OUT param */
-	function->resolve_option = plisql_variable_conflict;
-	function->print_strict_params = plisql_print_strict_params;
-	/* only promote extra warnings and errors at CREATE FUNCTION time */
-	function->extra_warnings = 0;
-	function->extra_errors = 0;
-	function->fn_is_trigger = subprocfunc->function->fn_is_trigger;
+	PG_TRY();
+	{
+		function->fn_signature = quote_qualified_identifier(NULL, subprocfunc->func_name);
+		function->fn_input_collation = fcinfo->fncollation;
+		function->fn_cxt = func_cxt;
+		function->out_param_varno = -1; /* set up for no OUT param */
+		function->resolve_option = plisql_variable_conflict;
+		function->print_strict_params = plisql_print_strict_params;
+		/* only promote extra warnings and errors at CREATE FUNCTION time */
+		function->extra_warnings = 0;
+		function->extra_errors = 0;
+		function->fn_is_trigger = orig_function->fn_is_trigger;
 
-	function->fn_prokind = subprocfunc->function->fn_prokind;
-	function->object_method_kind = subprocfunc->object_method_kind;
-	function->nstatements = 0;
-	function->requires_procedure_resowner = false;
-	function->fn_nargs = subprocfunc->function->fn_nargs;
+		function->fn_prokind = orig_function->fn_prokind;
+		function->object_method_kind = subprocfunc->object_method_kind;
+		function->nstatements = 0;
+		function->requires_procedure_resowner = false;
+		function->fn_nargs = orig_function->fn_nargs;
 
-	cur_compile_func_level = 0;
+		cur_compile_func_level = 0;
 
-	function->item = subprocfunc->function->item;
-	function->fn_oid = subprocfunc->function->fn_oid;
-	plisql_saved_compile[cur_compile_func_level] = function;
-	if (function->item != NULL)
-		plisql_compile_packageitem = (PLiSQL_package *) function->item->source;
-	else
-		plisql_compile_packageitem = NULL;
-	function->namelabel = pstrdup(subprocfunc->func_name);
+		function->item = orig_function->item;
+		function->fn_oid = orig_function->fn_oid;
+		plisql_saved_compile[cur_compile_func_level] = function;
+		if (function->item != NULL)
+			plisql_compile_packageitem = (PLiSQL_package *) function->item->source;
+		else
+			plisql_compile_packageitem = NULL;
+		function->namelabel = pstrdup(subprocfunc->func_name);
 
-	/* Initialize subproc compile state */
-	plisql_init_subprocfunc_compile(subprocfunc);
-	plisql_DumpExecTree = false;
+		/* Initialize subproc compile state */
+		plisql_init_subprocfunc_compile(subprocfunc);
+		plisql_DumpExecTree = false;
 
-	/* Replace template function with compiled instance */
-	subprocfunc->function = function;
-	plisql_ns_push(subprocfunc->func_name, PLISQL_LABEL_BLOCK);
+		/* Replace template function with compiled instance */
+		subprocfunc->function = function;
+		plisql_ns_push(subprocfunc->func_name, PLISQL_LABEL_BLOCK);
 
-	plisql_build_variable_from_funcargs(subprocfunc, forValidator,
-										fcinfo, found_varno);
+		plisql_build_variable_from_funcargs(subprocfunc, forValidator,
+											fcinfo, found_varno);
 
-	/* Parse the function body */
-	parse_rc = plisql_yyparse(&plisql_parse_result, scanner);
-	if (parse_rc != 0)
-		elog(ERROR, "plisql parser returned %d", parse_rc);
+		/* Parse the function body */
+		parse_rc = plisql_yyparse(&plisql_parse_result, scanner);
+		if (parse_rc != 0)
+			elog(ERROR, "plisql parser returned %d", parse_rc);
 
-	plisql_set_subprocfunc_action(subprocfunc, plisql_parse_result);
+		plisql_set_subprocfunc_action(subprocfunc, plisql_parse_result);
 
-	plisql_finish_datums(function);
+		plisql_finish_datums(function);
 
-	plisql_finish_subproc_func(function);
+		plisql_finish_subproc_func(function);
+	}
+	PG_CATCH();
+	{
+		/*
+		 * Restore the template function and remove any half-compiled entry
+		 * inserted into poly_tab so subsequent calls are not broken by an
+		 * action == NULL instance.
+		 */
+		subprocfunc->function = orig_function;
+		if (subprocfunc->poly_tab != NULL && function->fn_hashkey != NULL)
+		{
+			PLiSQL_func_hashkey key = *function->fn_hashkey;
+
+			function->fn_hashkey = NULL;
+			hash_search(subprocfunc->poly_tab,
+						(void *) &key,
+						HASH_REMOVE,
+						NULL);
+		}
+
+		plisql_scanner_finish(scanner);
+
+		error_context_stack = plerrcontext.previous;
+		plisql_error_funcname = NULL;
+		plisql_check_syntax = false;
+
+		MemoryContextSwitchTo(plisql_compile_tmp_cxt);
+		plisql_compile_tmp_cxt = NULL;
+
+		if (OidIsValid(define_useid))
+			SetUserIdAndSecContext(save_userid, save_sec_context);
+
+		PG_RE_THROW();
+	}
+	PG_END_TRY();
 
 	plisql_scanner_finish(scanner);
 
