@@ -729,7 +729,8 @@ plisql_set_subprocfunc_action(PLiSQL_subproc_function * subprocfunc,
 
 	if (subprocfunc->noutargs > 0 &&
 		subprocfunc->rettype != NULL &&
-		((PLiSQL_stmt *) llast(subprocfunc->function->action->body))->cmd_type != PLISQL_STMT_RETURN)
+		(subprocfunc->function->action->body == NIL ||
+		 ((PLiSQL_stmt *) llast(subprocfunc->function->action->body))->cmd_type != PLISQL_STMT_RETURN))
 		subprocfunc->function->fn_no_return = true;
 
 	/* Add implicit RETURN when appropriate */

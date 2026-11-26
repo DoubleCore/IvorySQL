@@ -1207,6 +1207,60 @@ begin
 	execute immediate ''declare books integer; begin books := 1000; :x := books + 100;end;'' using out id;
 end;');
 
+-- Function with OUT parameter and empty body
+create or replace function f_empty_out(id integer, price out integer) return varchar
+as
+begin
+end;
+/
+declare
+  a varchar(20);
+  b int;
+begin
+  a := f_empty_out(1, b);
+end;
+/
+drop function f_empty_out(integer, integer);
+
+-- Function with OUT parameter, empty body, and exception block
+create or replace function f_empty_exc_out(id integer, price out integer) return varchar
+as
+begin
+exception
+  when others then
+    return 'caught';
+end;
+/
+declare
+  a varchar(20);
+  b int;
+begin
+  a := f_empty_exc_out(1, b);
+end;
+/
+drop function f_empty_exc_out(integer, integer);
+
+-- Nested subproc function with OUT parameter and empty body
+create or replace function f_subproc_empty_out(id integer) return varchar
+as
+  function sub_empty_out(price out integer) return varchar is
+  begin
+  end;
+  a varchar(20);
+  b int;
+begin
+  begin
+    a := sub_empty_out(b);
+    return 'unexpected';
+  exception
+    when others then
+      return 'caught';
+  end;
+end;
+/
+select f_subproc_empty_out(1);
+drop function f_subproc_empty_out(integer);
+
 --clean data
 drop table books;
 

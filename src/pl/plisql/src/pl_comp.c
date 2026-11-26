@@ -1044,7 +1044,8 @@ do_compile(FunctionCallInfo fcinfo,
 	if (num_out_args > 0 &&
 		is_plisql_function &&
 		procStruct->prorettype != VOIDOID &&
-		((PLiSQL_stmt *) llast(function->action->body))->cmd_type != PLISQL_STMT_RETURN)
+		(function->action->body == NIL ||
+		 ((PLiSQL_stmt *) llast(function->action->body))->cmd_type != PLISQL_STMT_RETURN))
 	{
 		function->fn_no_return = true;
 	}
