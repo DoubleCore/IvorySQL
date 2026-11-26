@@ -293,6 +293,52 @@ SELECT sys.ora_dbms_scheduler_evaluate_calendar_string(
   'FREQ=YEARLY;BYDATE=20200101',
   '2026-01-01 00:00:00+00', '2026-07-01 00:00:00+00');
 ERROR:  calendar string "FREQ=YEARLY;BYDATE=20200101" does not yield a date after the given time
+-- BC start_date with FREQ=MONTHLY and far-apart / boundary timestamps
+SELECT sys.ora_dbms_scheduler_evaluate_calendar_string(
+  'FREQ=MONTHLY',
+  '0005-02-01 00:00:00+00 BC'::timestamptz,
+  '0005-01-01 00:00:00+00 BC'::timestamptz)
+  = '0005-02-01 00:00:00+00 BC'::timestamptz AS bc_monthly_ok;
+ bc_monthly_ok 
+---------------
+ t
+(1 row)
+
+SELECT sys.ora_dbms_scheduler_evaluate_calendar_string(
+  'FREQ=MONTHLY;BYMONTH=FEB',
+  '0005-02-01 00:00:00+00 BC'::timestamptz,
+  '0005-02-01 00:00:00+00 BC'::timestamptz)
+  = '0004-02-01 00:00:00+00 BC'::timestamptz AS bc_monthly_bymonth_ok;
+ bc_monthly_bymonth_ok 
+-----------------------
+ t
+(1 row)
+
+SELECT sys.ora_dbms_scheduler_evaluate_calendar_string(
+  'FREQ=MONTHLY',
+  '0001-12-01 00:00:00+00 BC'::timestamptz,
+  '0001-12-01 00:00:00+00 BC'::timestamptz)
+  = '0001-01-01 00:00:00+00'::timestamptz AS bc_to_ad_monthly_ok;
+ bc_to_ad_monthly_ok 
+---------------------
+ t
+(1 row)
+
+SELECT sys.ora_dbms_scheduler_evaluate_calendar_string(
+  'FREQ=DAILY',
+  '1000-01-01 00:00:00+00 BC'::timestamptz,
+  '294000-01-01 00:00:00+00'::timestamptz)
+  = '294000-01-02 00:00:00+00'::timestamptz AS far_apart_daily_ok;
+ far_apart_daily_ok 
+--------------------
+ t
+(1 row)
+
+SELECT sys.ora_dbms_scheduler_evaluate_calendar_string(
+  'FREQ=HOURLY',
+  '294276-12-31 23:00:00+00'::timestamptz,
+  '294276-12-31 23:00:00+00'::timestamptz);
+ERROR:  calendar string "FREQ=HOURLY" does not yield a date after the given time
 -- package-level OUT parameter form
 DECLARE
   next_d TIMESTAMP WITH TIME ZONE;
