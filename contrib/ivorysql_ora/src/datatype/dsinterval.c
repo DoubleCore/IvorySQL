@@ -1026,6 +1026,15 @@ AdjustIntervalForTypmod(Interval *interval, int32 typmod)
 }
 
 /*
+ *	Widen to int64 before negating so INT_MIN cannot trigger abs(INT_MIN) UB.
+ */
+static inline int64
+dsinterval_abs32(int32 val)
+{
+	return (val < 0) ? -(int64) val : (int64) val;
+}
+
+/*
  *	Adjust interval day for specified precision
  */
 static void
@@ -1035,12 +1044,12 @@ AdjustTypmodForDay(Interval *interval, int32 typmod)
 	{
 		int			range = INTERVAL_RANGE(typmod);
 		int			day_precision = INTERVAL_DAY_PRECISION(typmod);
-		int			interval_day;
+		int64		interval_day;
 
 		if (range != INTERVAL_FULL_RANGE)
 		{
 			/* interval'-100' day */
-			interval_day = abs(interval->day);
+			interval_day = dsinterval_abs32(interval->day);
 			switch (day_precision)
 			{
 				case 0:
@@ -1579,51 +1588,51 @@ dsinterval_in(PG_FUNCTION_ARGS)
 		switch (range)
 		{
 			case INTERVAL_MASK(DAY):
-				if (abs(tm->tm_year) != INT_MAX ||
-					abs(tm->tm_mon) != INT_MAX ||
-					abs(tm->tm_min) != INT_MAX ||
-					abs(tm->tm_sec) != INT_MAX ||
-					abs(tm->tm_hour) != INT_MAX ||
-					abs(tm->tm_mday) == INT_MAX)
+				if (dsinterval_abs32(tm->tm_year) != INT_MAX ||
+					dsinterval_abs32(tm->tm_mon) != INT_MAX ||
+					dsinterval_abs32(tm->tm_min) != INT_MAX ||
+					dsinterval_abs32(tm->tm_sec) != INT_MAX ||
+					dsinterval_abs32(tm->tm_hour) != INT_MAX ||
+					dsinterval_abs32(tm->tm_mday) == INT_MAX)
 					ereport(ERROR,
 							(errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
 							 errmsg("The character string you specified is not a valid interval")));
 				break;
 
 			case INTERVAL_MASK(DAY) | INTERVAL_MASK(HOUR):
-				if (abs(tm->tm_year) != INT_MAX ||
-					abs(tm->tm_mon) != INT_MAX ||
-					abs(tm->tm_min) != INT_MAX ||
-					abs(tm->tm_sec) != INT_MAX ||
-					abs(tm->tm_hour) == INT_MAX ||
-					abs(tm->tm_mday) == INT_MAX)
+				if (dsinterval_abs32(tm->tm_year) != INT_MAX ||
+					dsinterval_abs32(tm->tm_mon) != INT_MAX ||
+					dsinterval_abs32(tm->tm_min) != INT_MAX ||
+					dsinterval_abs32(tm->tm_sec) != INT_MAX ||
+					dsinterval_abs32(tm->tm_hour) == INT_MAX ||
+					dsinterval_abs32(tm->tm_mday) == INT_MAX)
 					ereport(ERROR,
 							(errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
 							 errmsg("The character string you specified is not a valid interval")));
 
-				if (abs(tm->tm_hour) < 0 || abs(tm->tm_hour) > 23)
+				if (dsinterval_abs32(tm->tm_hour) > 23)
 					ereport(ERROR,
 							(errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
 							 errmsg("hour must be between 0 and 23")));
 				break;
 
 			case INTERVAL_MASK(DAY) | INTERVAL_MASK(HOUR) | INTERVAL_MASK(MINUTE):
-				if (abs(tm->tm_year) != INT_MAX ||
-					abs(tm->tm_mon) != INT_MAX ||
-					abs(tm->tm_sec) != INT_MAX ||
-					abs(tm->tm_mday) == INT_MAX ||
-					abs(tm->tm_hour) == INT_MAX ||
-					abs(tm->tm_min) == INT_MAX)
+				if (dsinterval_abs32(tm->tm_year) != INT_MAX ||
+					dsinterval_abs32(tm->tm_mon) != INT_MAX ||
+					dsinterval_abs32(tm->tm_sec) != INT_MAX ||
+					dsinterval_abs32(tm->tm_mday) == INT_MAX ||
+					dsinterval_abs32(tm->tm_hour) == INT_MAX ||
+					dsinterval_abs32(tm->tm_min) == INT_MAX)
 					ereport(ERROR,
 							(errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
 							 errmsg("The character string you specified is not a valid interval")));
 
-				if (abs(tm->tm_hour) < 0 || abs(tm->tm_hour) > 23)
+				if (dsinterval_abs32(tm->tm_hour) > 23)
 					ereport(ERROR,
 							(errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
 							 errmsg("hour must be between 0 and 23")));
 
-				if (abs(tm->tm_min) < 0 || abs(tm->tm_min) > 59)
+				if (dsinterval_abs32(tm->tm_min) > 59)
 					ereport(ERROR,
 							(errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
 							 errmsg("minutes must be between 0 and 59")));
@@ -1631,113 +1640,113 @@ dsinterval_in(PG_FUNCTION_ARGS)
 
 			case INTERVAL_FULL_RANGE:
 			case INTERVAL_MASK(DAY) | INTERVAL_MASK(HOUR) | INTERVAL_MASK(MINUTE) | INTERVAL_MASK(SECOND):
-				if (abs(tm->tm_year) != INT_MAX ||
-					abs(tm->tm_mon) != INT_MAX ||
-					abs(tm->tm_mday) == INT_MAX ||
-					abs(tm->tm_hour) == INT_MAX ||
-					abs(tm->tm_min) == INT_MAX ||
-					abs(tm->tm_sec) == INT_MAX)
+				if (dsinterval_abs32(tm->tm_year) != INT_MAX ||
+					dsinterval_abs32(tm->tm_mon) != INT_MAX ||
+					dsinterval_abs32(tm->tm_mday) == INT_MAX ||
+					dsinterval_abs32(tm->tm_hour) == INT_MAX ||
+					dsinterval_abs32(tm->tm_min) == INT_MAX ||
+					dsinterval_abs32(tm->tm_sec) == INT_MAX)
 					ereport(ERROR,
 							(errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
 							 errmsg("The character string you specified is not a valid interval")));
 
-				if (abs(tm->tm_hour) < 0 || abs(tm->tm_hour) > 23)
+				if (dsinterval_abs32(tm->tm_hour) > 23)
 					ereport(ERROR,
 							(errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
 							 errmsg("hour must be between 0 and 23")));
 
-				if (abs(tm->tm_min) < 0 || abs(tm->tm_min) > 59)
+				if (dsinterval_abs32(tm->tm_min) > 59)
 					ereport(ERROR,
 							(errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
 							 errmsg("minutes must be between 0 and 59")));
 
-				if (abs(tm->tm_sec) < 0 || abs(tm->tm_sec) > 59)
+				if (dsinterval_abs32(tm->tm_sec) > 59)
 					ereport(ERROR,
 							(errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
 							 errmsg("seconds must be between 0 and 59")));
 				break;
 			case INTERVAL_MASK(HOUR):
-				if (abs(tm->tm_year) != INT_MAX ||
-					abs(tm->tm_mon) != INT_MAX ||
-					abs(tm->tm_mday) != INT_MAX ||
-					abs(tm->tm_min) != INT_MAX ||
-					abs(tm->tm_sec) != INT_MAX ||
-					abs(tm->tm_hour) == INT_MAX)
+				if (dsinterval_abs32(tm->tm_year) != INT_MAX ||
+					dsinterval_abs32(tm->tm_mon) != INT_MAX ||
+					dsinterval_abs32(tm->tm_mday) != INT_MAX ||
+					dsinterval_abs32(tm->tm_min) != INT_MAX ||
+					dsinterval_abs32(tm->tm_sec) != INT_MAX ||
+					dsinterval_abs32(tm->tm_hour) == INT_MAX)
 					ereport(ERROR,
 							(errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
 							 errmsg("The character string you specified is not a valid interval")));
 				break;
 			case INTERVAL_MASK(HOUR) | INTERVAL_MASK(MINUTE):
-				if (abs(tm->tm_year) != INT_MAX ||
-					abs(tm->tm_mon) != INT_MAX ||
-					abs(tm->tm_mday) != INT_MAX ||
-					abs(tm->tm_sec) != INT_MAX ||
-					abs(tm->tm_hour) == INT_MAX ||
-					abs(tm->tm_min) == INT_MAX)
+				if (dsinterval_abs32(tm->tm_year) != INT_MAX ||
+					dsinterval_abs32(tm->tm_mon) != INT_MAX ||
+					dsinterval_abs32(tm->tm_mday) != INT_MAX ||
+					dsinterval_abs32(tm->tm_sec) != INT_MAX ||
+					dsinterval_abs32(tm->tm_hour) == INT_MAX ||
+					dsinterval_abs32(tm->tm_min) == INT_MAX)
 					ereport(ERROR,
 							(errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
 							 errmsg("The character string you specified is not a valid interval")));
 
-				if (abs(tm->tm_min) < 0 || abs(tm->tm_min) > 59)
+				if (dsinterval_abs32(tm->tm_min) > 59)
 					ereport(ERROR,
 							(errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
 							 errmsg("minutes must be between 0 and 59")));
 				break;
 			case INTERVAL_MASK(HOUR) | INTERVAL_MASK(MINUTE) | INTERVAL_MASK(SECOND):
-				if (abs(tm->tm_year) != INT_MAX ||
-					abs(tm->tm_mon) != INT_MAX ||
-					abs(tm->tm_mday) != INT_MAX ||
-					abs(tm->tm_hour) == INT_MAX ||
-					abs(tm->tm_min) == INT_MAX ||
-					abs(tm->tm_sec) == INT_MAX)
+				if (dsinterval_abs32(tm->tm_year) != INT_MAX ||
+					dsinterval_abs32(tm->tm_mon) != INT_MAX ||
+					dsinterval_abs32(tm->tm_mday) != INT_MAX ||
+					dsinterval_abs32(tm->tm_hour) == INT_MAX ||
+					dsinterval_abs32(tm->tm_min) == INT_MAX ||
+					dsinterval_abs32(tm->tm_sec) == INT_MAX)
 					ereport(ERROR,
 							(errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
 							 errmsg("The character string you specified is not a valid interval")));
 
-				if (abs(tm->tm_min) < 0 || abs(tm->tm_min) > 59)
+				if (dsinterval_abs32(tm->tm_min) > 59)
 					ereport(ERROR,
 							(errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
 							 errmsg("minutes must be between 0 and 59")));
 
-				if (abs(tm->tm_sec) < 0 || abs(tm->tm_sec) > 59)
+				if (dsinterval_abs32(tm->tm_sec) > 59)
 					ereport(ERROR,
 							(errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
 							 errmsg("seconds must be between 0 and 59")));
 				break;
 			case INTERVAL_MASK(MINUTE):
-				if (abs(tm->tm_year) != INT_MAX ||
-					abs(tm->tm_mon) != INT_MAX ||
-					abs(tm->tm_mday) != INT_MAX ||
-					abs(tm->tm_hour) != INT_MAX ||
-					abs(tm->tm_sec) != INT_MAX ||
-					abs(tm->tm_min) == INT_MAX)
+				if (dsinterval_abs32(tm->tm_year) != INT_MAX ||
+					dsinterval_abs32(tm->tm_mon) != INT_MAX ||
+					dsinterval_abs32(tm->tm_mday) != INT_MAX ||
+					dsinterval_abs32(tm->tm_hour) != INT_MAX ||
+					dsinterval_abs32(tm->tm_sec) != INT_MAX ||
+					dsinterval_abs32(tm->tm_min) == INT_MAX)
 					ereport(ERROR,
 							(errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
 							 errmsg("The character string you specified is not a valid interval")));
 				break;
 			case INTERVAL_MASK(MINUTE) | INTERVAL_MASK(SECOND):
-				if (abs(tm->tm_year) != INT_MAX ||
-					abs(tm->tm_mon) != INT_MAX ||
-					abs(tm->tm_mday) != INT_MAX ||
-					abs(tm->tm_hour) != INT_MAX ||
-					abs(tm->tm_min) == INT_MAX ||
-					abs(tm->tm_sec) == INT_MAX)
+				if (dsinterval_abs32(tm->tm_year) != INT_MAX ||
+					dsinterval_abs32(tm->tm_mon) != INT_MAX ||
+					dsinterval_abs32(tm->tm_mday) != INT_MAX ||
+					dsinterval_abs32(tm->tm_hour) != INT_MAX ||
+					dsinterval_abs32(tm->tm_min) == INT_MAX ||
+					dsinterval_abs32(tm->tm_sec) == INT_MAX)
 					ereport(ERROR,
 							(errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
 							 errmsg("The character string you specified is not a valid interval")));
 
-				if (abs(tm->tm_sec) < 0 || abs(tm->tm_sec) > 59)
+				if (dsinterval_abs32(tm->tm_sec) > 59)
 					ereport(ERROR,
 							(errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
 							 errmsg("seconds must be between 0 and 59")));
 				break;
 			case INTERVAL_MASK(SECOND):
-				if (abs(tm->tm_year) != INT_MAX ||
-					abs(tm->tm_mon) != INT_MAX ||
-					abs(tm->tm_mday) != INT_MAX ||
-					abs(tm->tm_hour) != INT_MAX ||
-					abs(tm->tm_min) != INT_MAX ||
-					abs(tm->tm_sec) == INT_MAX)
+				if (dsinterval_abs32(tm->tm_year) != INT_MAX ||
+					dsinterval_abs32(tm->tm_mon) != INT_MAX ||
+					dsinterval_abs32(tm->tm_mday) != INT_MAX ||
+					dsinterval_abs32(tm->tm_hour) != INT_MAX ||
+					dsinterval_abs32(tm->tm_min) != INT_MAX ||
+					dsinterval_abs32(tm->tm_sec) == INT_MAX)
 					ereport(ERROR,
 							(errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
 							 errmsg("The character string you specified is not a valid interval")));
@@ -1749,10 +1758,10 @@ dsinterval_in(PG_FUNCTION_ARGS)
 		}
 
 		/* reset the initial value to '0' */
-		tm->tm_sec = (abs(tm->tm_sec) == INT_MAX) ? 0 : tm->tm_sec;
-		tm->tm_min = (abs(tm->tm_min) == INT_MAX) ? 0 : tm->tm_min;
-		tm->tm_hour = (abs(tm->tm_hour) == INT_MAX) ? 0 : tm->tm_hour;
-		tm->tm_mday = (abs(tm->tm_mday) == INT_MAX) ? 0 : tm->tm_mday;
+		tm->tm_sec = (dsinterval_abs32(tm->tm_sec) == INT_MAX) ? 0 : tm->tm_sec;
+		tm->tm_min = (dsinterval_abs32(tm->tm_min) == INT_MAX) ? 0 : tm->tm_min;
+		tm->tm_hour = (dsinterval_abs32(tm->tm_hour) == INT_MAX) ? 0 : tm->tm_hour;
+		tm->tm_mday = (dsinterval_abs32(tm->tm_mday) == INT_MAX) ? 0 : tm->tm_mday;
 
 		/*
 		 * Compatible oracle: if interval type is INTERVAL DAY TO SECOND that
